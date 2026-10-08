@@ -400,13 +400,9 @@ def stories(request):
             likes_count=Count("likes", distinct=True),
             is_liked=Exists(StoryLike.objects.filter(story=OuterRef("pk"), user=me_)),
         )
-        .order_by("-created_at")
+        .order_by("created_at")
     )
-    latest = {}
-    for s in qs:  # newest story per user
-        latest.setdefault(s.user_id, s)
-    items = sorted(latest.values(), key=lambda s: (s.seen, -s.created_at.timestamp()))
-    return JsonResponse({"results": [serialize_story(s) for s in items]})
+    return JsonResponse({"results": [serialize_story(s) for s in qs]})
 
 
 def get_visible_story(user, story_id):

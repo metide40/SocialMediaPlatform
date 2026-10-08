@@ -289,60 +289,192 @@
   }
 
   /* ================= stories ================= */
+  function storyGroups() {
+    var groups = {};
+    (state.stories || []).forEach(function (s) {
+      var userId = s && s.user ? String(s.user.id) : "";
+      if (!userId) return;
+      if (!groups[userId]) groups[userId] = { user: s.user, items: [], hasUnseen: false };
+      groups[userId].items.push(s);
+    });
+
+    var list = Object.keys(groups).map(function (userId) {
+      var group = groups[userId];
+      group.hasUnseen = group.items.some(function (s) { return !s.seen; });
+      group.items.sort(function (a, b) { return new Date(a.createdAt) - new Date(b.createdAt); });
+      return group;
+    });
+
+    var meId = state.me ? String(state.me.id) : "";
+    var mine = list.filter(function (g) { return String(g.user.id) === meId; })[0];
+    var others = list.filter(function (g) { return String(g.user.id) !== meId; });
+
+    others.sort(function (a, b) {
+      if (a.hasUnseen !== b.hasUnseen) return a.hasUnseen ? -1 : 1;
+      var aLatest = new Date(a.items[a.items.length - 1].createdAt).getTime();
+      var bLatest = new Date(b.items[b.items.length - 1].createdAt).getTime();
+      return bLatest - aLatest;
+    });
+
+    return mine ? [mine].concat(others) : others;
+  }
+
   function renderStories() {
-    var addBtn = state.me
-      ? '<button class="story story--add" data-add-story aria-label="Add your story">' +
-          '<div class="story__ring story__ring--add"><div><img src="' + esc(av(state.me)) + '" alt="" loading="lazy" />' +
-          '<span class="story__plus">' + icon("plus", 14) + "</span></div></div>" +
-          "<span>Your story</span></button>"
-      : "";
-    els.stories.innerHTML = addBtn + state.stories.map(function (s) {
-      return '<button class="story' + (s.seen ? " is-seen" : "") + '" data-story="' + s.id + '" aria-label="View story by ' + esc(s.user.name) + '">' +
-        '<div class="story__ring"><div><img src="' + esc(av(s.user)) + '" alt="" loading="lazy" /></div></div>' +
-        "<span>" + esc(s.user.username) + "</span></button>";
-    }).join("");
+    var groups = storyGroups();
+    var me = state.me;
+    var html = [];
+
+    if (me) {
+      var myStories = (groups.filter(function (g) { return String(g.user.id) === String(me.id); })[0] || { user: me, items: [], hasUnseen: false });
+      var mySeen = myStories.items.length > 0 && myStories.items.every(function (s) { return s.seen; });
+      var myIsAdd = myStories.items.length === 0;
+      html.push(
+        '<div class="story' + (myIsAdd ? ' story--add' : '') + (mySeen && !myIsAdd ? ' is-seen' : '') + '" data-story-group="' + esc(String(me.id)) + '" role="button" tabindex="0" aria-label="View your stories">' +
+          '<div class="story__ring' + (myIsAdd ? ' story__ring--add' : '') + '"><div><img src="' + esc(av(me)) + '" alt="" loading="lazy" />' +
+          '<span class="story__plus" data-add-story aria-label="Add your story">' + icon("plus", 14) + '</span></div></div>' +
+          '<span>Your story</span>' +
+        '</div>'
+      );
+    }
+
+    groups.filter(function (g) { return me ? String(g.user.id) !== String(me.id) : true; }).forEach(function (g) {
+      var seen = g.items.length > 0 && g.items.every(function (s) { return s.seen; });
+      html.push(
+        '<div class="story' + (seen ? ' is-seen' : '') + '" data-story-group="' + esc(String(g.user.id)) + '" role="button" tabindex="0" aria-label="View story by ' + esc(g.user.name) + '">' +
+          '<div class="story__ring"><div><img src="' + esc(av(g.user)) + '" alt="" loading="lazy" /></div></div>' +
+          '<span>' + esc(g.user.username) + '</span>' +
+        '</div>'
+      );
+    });
+
+    els.stories.innerHTML = html.join("");
   }
 
   function loadStories() {
-    return api("/stories").then(function (d) { state.stories = d.results; renderStories(); }).catch(function () {});
+    return api("/stories").then(function (d) {
+      state.stories = d.results || [];
+      renderStories();
+    }).catch(function () {});
   }
 
-  function openStory(id) {
-    var s = state.stories.filter(function (x) { return String(x.id) === String(id); })[0];
-    if (!s) return;
-    if (!s.seen) {
-      s.seen = true; renderStories();
-      api("/stories/" + s.id + "/seen", { method: "POST" }).catch(function () {});
-    }
-    var media = s.previewImage
-      ? '<img class="viewer__img" src="' + esc(s.previewImage) + '" alt="Story by ' + esc(s.user.name) + '" />'
+  function getStoryGroup(userId) {
+    var match = storyGroups().filter(function (g) { return String(g.user.id) === String(userId); })[0];
+    return match || null;
+  }
+
+  function getStoryById(id) {
+    return (state.stories || []).filter(function (s) { return String(s.id) === String(id); })[0] || null;
+  }
+
+  function markStorySeen(story) {
+    if (!story || story.seen) return;
+    story.seen = true;
+    renderStories();
+    api("/stories/" + story.id + "/seen", { method: "POST" }).catch(function () {});
+  }
+
+  function buildViewerMarkup(story, group) {
+    var media = story.previewImage
+      ? '<img class="viewer__img" src="' + esc(story.previewImage) + '" alt="Story by ' + esc(story.user.name) + '" />'
       : '<div class="viewer__img viewer__img--text" aria-hidden="true"></div>';
-    var caption = s.text
-      ? '<div class="viewer__caption">' + esc(s.text) + "</div>"
+    var caption = story.text
+      ? '<div class="viewer__caption">' + esc(story.text) + '</div>'
       : "";
-    var liked = s.isLiked ? " is-on" : "";
-    els.viewer.innerHTML =
-      '<div class="viewer__card" data-story-id="' + s.id + '">' +
-        '<div class="viewer__progress"><i></i></div>' +
-        '<div class="viewer__head"><img src="' + esc(av(s.user)) + '" alt="" /><span>' + esc(s.user.name) + "</span>" +
-          '<button class="viewer__close" data-close-story aria-label="Close story">' + icon("x", 18) + "</button></div>" +
-        media + caption +
-        '<div class="viewer__footer">' +
-          '<button class="viewer__like' + liked + '" data-story-like="' + s.id + '" aria-label="Like story" aria-pressed="' + !!s.isLiked + '">' +
-            icon("heart", 22) +
-            '<span data-story-likes data-story-likers="' + s.id + '">' + (s.likesCount || 0) + "</span>" +
-          "</button>" +
-          '<div class="viewer__reply"><div>Reply to ' + esc(s.user.username) + "…</div></div>" +
-        "</div>" +
-      "</div>";
+    var liked = story.isLiked ? " is-on" : "";
+    var progress = group.items.map(function (item, index) {
+      var isDone = index < state.storyViewer.index;
+      var isCurrent = index === state.storyViewer.index;
+      return '<span class="viewer__segment' + (isDone ? ' is-done' : '') + (isCurrent ? ' is-current' : '') + '"><i></i></span>';
+    }).join("");
+    return '<div class="viewer__card" data-story-id="' + story.id + '">' +
+      '<div class="viewer__progress">' + progress + '</div>' +
+      '<div class="viewer__head"><img src="' + esc(av(story.user)) + '" alt="" /><span>' + esc(story.user.name) + '</span>' +
+        '<button class="viewer__close" data-close-story aria-label="Close story">' + icon("x", 18) + '</button></div>' +
+      '<div class="viewer__tap viewer__tap--left" data-story-back aria-label="Previous story"></div>' +
+      '<div class="viewer__tap viewer__tap--right" data-story-next aria-label="Next story"></div>' +
+      media + caption +
+      '<div class="viewer__footer">' +
+        '<button class="viewer__like' + liked + '" data-story-like="' + story.id + '" aria-label="Like story" aria-pressed="' + !!story.isLiked + '">' +
+          icon("heart", 22) +
+          '<span data-story-likes data-story-likers="' + story.id + '">' + (story.likesCount || 0) + '</span>' +
+        '</button>' +
+        '<div class="viewer__reply"><div>Reply to ' + esc(story.user.username) + '…</div></div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function openStoryGroup(userId) {
+    var group = getStoryGroup(userId);
+    if (!group || !group.items.length) {
+      if (state.me && String(state.me.id) === String(userId)) {
+        openStoryComposer();
+      }
+      return;
+    }
+
+    var startIndex = 0;
+    for (var i = 0; i < group.items.length; i++) {
+      if (!group.items[i].seen) { startIndex = i; break; }
+    }
+    state.storyViewer = { userId: String(userId), items: group.items.slice(), index: startIndex };
+    renderStoryViewer();
+  }
+
+  function renderStoryViewer() {
+    var viewerState = state.storyViewer || null;
+    if (!viewerState || !viewerState.items || !viewerState.items.length) return;
+    var story = viewerState.items[viewerState.index];
+    if (!story) {
+      closeStory();
+      return;
+    }
+    var group = getStoryGroup(viewerState.userId) || { items: viewerState.items };
+    els.viewer.innerHTML = buildViewerMarkup(story, group);
     els.viewer.hidden = false;
     document.body.style.overflow = "hidden";
-    $(".viewer__progress i", els.viewer).addEventListener("animationend", closeStory);
+    markStorySeen(story);
+
+    var current = $$(".viewer__segment.is-current i", els.viewer)[0];
+    if (current) {
+      current.addEventListener("animationend", function () {
+        if (state.storyViewer && state.storyViewer.userId === viewerState.userId) {
+          nextStory();
+        }
+      }, { once: true });
+    }
     $("[data-close-story]", els.viewer).focus();
   }
 
+  function nextStory() {
+    var viewerState = state.storyViewer;
+    if (!viewerState || !viewerState.items.length) return;
+    if (viewerState.index < viewerState.items.length - 1) {
+      viewerState.index += 1;
+      renderStoryViewer();
+      return;
+    }
+    closeStory();
+  }
+
+  function prevStory() {
+    var viewerState = state.storyViewer;
+    if (!viewerState || !viewerState.items.length) return;
+    if (viewerState.index > 0) {
+      viewerState.index -= 1;
+      renderStoryViewer();
+      return;
+    }
+    renderStoryViewer();
+  }
+
+  function openStory(id) {
+    var s = getStoryById(id);
+    if (!s) return;
+    openStoryGroup(s.user.id);
+  }
+
   function toggleStoryLike(id) {
-    var s = state.stories.filter(function (x) { return String(x.id) === String(id); })[0];
+    var s = getStoryById(id);
     if (!s) return;
     var prevLiked = !!s.isLiked;
     var prevCount = s.likesCount || 0;
@@ -374,7 +506,6 @@
   }
 
   function showStoryLikers(id) {
-    // Remove existing sheet
     var old = $(".likers-sheet", els.viewer);
     if (old) old.remove();
     var sheet = document.createElement("div");
@@ -388,9 +519,8 @@
     else els.viewer.appendChild(sheet);
 
     api("/stories/" + id + "/likes").then(function (d) {
-      // Keep story data in state in case we need it
       if (d.story) {
-        var existing = state.stories.filter(function (x) { return String(x.id) === String(id); })[0];
+        var existing = getStoryById(id);
         if (existing) {
           existing.likesCount = d.story.likesCount;
           existing.isLiked = d.story.isLiked;
@@ -412,8 +542,8 @@
       ul.innerHTML = list.map(function (u) {
         return '<li data-profile="' + esc(u.username) + '">' +
           '<img src="' + esc(av(u)) + '" alt="" loading="lazy" />' +
-          '<div class="meta"><b>' + esc(u.name) + "</b><span>@" + esc(u.username) + "</span></div>" +
-          "</li>";
+          '<div class="meta"><b>' + esc(u.name) + '</b><span>@' + esc(u.username) + '</span></div>' +
+          '</li>';
       }).join("");
       sheet.appendChild(ul);
     }).catch(function (e) {
@@ -426,6 +556,8 @@
     if (els.viewer.hidden) return;
     els.viewer.hidden = true;
     els.viewer.innerHTML = "";
+    state.storyViewer = null;
+    renderStories();
     if (els.dialog.hidden) document.body.style.overflow = "";
   }
 
@@ -960,13 +1092,25 @@
       if (t.closest("[data-back-profile]")) { goHome(); return; }
       if (t.closest("[data-edit-profile]")) { openEditProfile(); return; }
       if (t.closest("[data-add-story]")) { openStoryComposer(); return; }
+      if (t.closest("[data-story-group]")) {
+        var groupEl = t.closest("[data-story-group]");
+        if (groupEl && t.closest("[data-add-story]")) {
+          e.stopPropagation();
+          openStoryComposer();
+          return;
+        }
+        e.stopPropagation();
+        openStoryGroup(groupEl.dataset.storyGroup);
+        return;
+      }
 
-      if (t.closest("[data-close-likers]")) {
+      if (t.closest("[data-close-likers]") ) {
         e.stopPropagation();
         var sh = $(".likers-sheet", els.viewer);
         if (sh) sh.remove();
         return;
       }
+
       var likersBtn = t.closest("[data-story-likers]");
       if (likersBtn) {
         e.stopPropagation();
@@ -976,7 +1120,6 @@
       var storyLike = t.closest("[data-story-like]");
       if (storyLike) {
         e.stopPropagation();
-        // clicking the count area is handled above; heart toggles like
         if (t.closest("[data-story-likes]")) {
           showStoryLikers(storyLike.dataset.storyLike);
           return;
@@ -985,8 +1128,8 @@
         return;
       }
 
-      var story = t.closest("[data-story]");
-      if (story) { openStory(story.dataset.story); return; }
+      if (t.closest("[data-story-next]")) { e.stopPropagation(); nextStory(); return; }
+      if (t.closest("[data-story-back]")) { e.stopPropagation(); prevStory(); return; }
       if (t.closest("[data-close-story]") || t === els.viewer) { closeStory(); return; }
 
       var filter = t.closest("[data-filter]");
@@ -1057,6 +1200,16 @@
 
     document.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && e.target.matches("[data-draft]")) { e.preventDefault(); submitComment(articleOf(e.target)); }
+      if (e.key === "Enter" || e.key === " ") {
+        var keyStory = e.target.closest("[data-story-group]");
+        if (keyStory) {
+          e.preventDefault();
+          if (e.target.closest("[data-add-story]")) { openStoryComposer(); }
+          else { openStoryGroup(keyStory.dataset.storyGroup); }
+        }
+      }
+      if (e.key === "ArrowRight" && !els.viewer.hidden && state.storyViewer) { e.preventDefault(); nextStory(); return; }
+      if (e.key === "ArrowLeft" && !els.viewer.hidden && state.storyViewer) { e.preventDefault(); if (state.storyViewer.index === 0) { renderStoryViewer(); } else { prevStory(); } return; }
       if (e.key === "Escape") {
         closeStory(); closeMenus(); togglePanel(false);
         if (els.dialog.dataset.dismissible) closeDialog();

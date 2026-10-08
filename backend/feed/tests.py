@@ -4,6 +4,8 @@ import tempfile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
+from django.utils import timezone
+from datetime import timedelta
 
 from .models import Comment, Follow, Like, Notification, Post, Story, StoryLike, User
 
@@ -250,6 +252,41 @@ class ConstraintTests(ApiTestCase):
             Like.objects.create(user=self.bob, post=p)
         with self.assertRaises(IntegrityError), transaction.atomic():
             Follow.objects.create(follower=self.alice, following=self.alice)
+
+
+# ------------------------------------------------------------------ stories (list + visibility)
+class StoryListTests(ApiTestCase):
+    def test_story_list_returns_all_active_stories_oldest_first(self):
+        alice = self.alice
+        Follow.objects.create(follower=self.bob, following=alice)
+
+        first = Story.objects.create(user=alice, text="first")
+        second = Story.objects.create(user=alice, text="second")
+        other = Story.objects.create(user=self.bob, text="bob story")
+
+        data = self.b.get("/api/stories").json()["results"]
+        self.assertEqual([item["id"] for item in data], [first.id, second.id, other.id])
+
+    def test_story_list_includes_my_own_stories(self):
+        mine1 = Story.objects.create(user=self.alice, text="mine 1")
+        mine2 = Story.objects.create(user=self.alice, text="mine 2")
+
+        story_ids = [item["id"] for item in self.a.get("/api/stories").json()["results"]]
+        self.assertIn(mine1.id, story_ids)
+        self.assertIn(mine2.id, story_ids)
+
+    def test_story_list_excludes_unfollowed_users(self):
+        carol = User.objects.create_user("carol", password=PASSWORD, display_name="Carol")
+        secret = Story.objects.create(user=carol, text="secret")
+
+        story_ids = [item["id"] for item in self.a.get("/api/stories").json()["results"]]
+        self.assertNotIn(secret.id, story_ids)
+
+    def test_story_list_excludes_stories_older_than_24h(self):
+        old = Story.objects.create(user=self.alice, text="old", created_at=timezone.now() - timedelta(hours=25))
+
+        story_ids = [item["id"] for item in self.a.get("/api/stories").json()["results"]]
+        self.assertNotIn(old.id, story_ids)
 
 
 # ------------------------------------------------------------------ stories (likers)
