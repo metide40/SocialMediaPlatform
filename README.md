@@ -1,66 +1,89 @@
-# Vortex – full stack
+# Vortex
 
-- **Frontend:** HTML + CSS + vanilla JavaScript (`frontend/`, no build step)
-- **Backend:** Django + PostgreSQL JSON API (`backend/`)
-- Django also serves the frontend, so everything runs on one origin (session cookies + CSRF just work).
+A social feed in the style of Instagram, built with Django and vanilla JavaScript. It has posts, likes, comments, follows, 24-hour stories, notifications, profiles, and a light and dark theme.
+
+- **Frontend:** HTML, CSS and JavaScript in `frontend/` (no build step)
+- **Backend:** Django + PostgreSQL JSON API in `backend/`
+- Django serves the frontend too, so everything runs on one origin.
+
+## Features
+
+- Sign up and log in
+- Feed with For You, Following and Explore, plus search
+- Posts with photo upload or image URL, caption, location and tags
+- Likes, saves and comments
+- Stories: several per user, visible for 24 hours to you and the people you follow, with likes and a list of who liked
+- Profiles with avatar upload, bio, follower counts, and Feed / Media / Saved / Liked tabs
+- Follow and unfollow, with notifications
+- Light and dark theme, responsive layout
 
 ## Quick start
 
-```bash
-# 1. PostgreSQL (skip if you already have one – then create a db/user matching .env.example)
-docker compose up -d db
+You need Python 3.10+ and PostgreSQL (Docker is the easiest way to get it).
 
-# 2. Python environment
+```bash
+docker compose up -d db                  # PostgreSQL
+
 cd backend
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate                # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 3. Configuration (Django does not read .env by itself – export the variables)
-cp .env.example .env
-set -a; source .env; set +a                             # Windows: set each variable manually
-
-# 4. Create tables (custom user model => makemigrations first, and commit the generated files)
-python manage.py makemigrations feed
+export DJANGO_DEBUG=1                    # Windows PowerShell: $env:DJANGO_DEBUG = "1"
 python manage.py migrate
-
-# 5. Demo data + admin user
-python manage.py seed                                   # users: jordanvale, elenavance, ... password: vortex123
-python manage.py createsuperuser
-
-# 6. Run
+python manage.py seed                    # demo data (optional)
 python manage.py runserver
 ```
 
-Open <http://localhost:8000> and log in as `jordanvale` / `vortex123` (or sign up).
-Admin: <http://localhost:8000/admin/>.
+Open <http://localhost:8000> and log in as `jordanvale` / `vortex123`, or sign up.
+To use the admin site at `/admin/`, first run `python manage.py createsuperuser`.
 
-## API (all JSON, session-cookie auth, `X-CSRFToken` header on POSTs)
+`seed --reset` recreates the demo data. The demo images are hosted on a third-party server and may stop loading.
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/auth/register` `{username,password,displayName}` | create account + log in |
-| POST | `/api/auth/login` `{username,password}` | log in |
-| POST | `/api/auth/logout` | log out |
-| GET | `/api/me` | current user (401 if logged out) |
-| POST/PATCH | `/api/me` | update profile (`displayName`, `bio`, `location`, `website`, `avatarUrl`, `coverUrl` or multipart `avatar`/`cover` files) |
-| GET | `/api/users/<username>` | profile |
-| POST | `/api/users/<username>/follow` | toggle follow (returns `isFollowing`, `followersCount`, `followingCount`) |
-| GET | `/api/posts?filter=for-you\|following\|explore\|saved&author=&q=&limit=&offset=` | feed |
-| POST | `/api/posts` | create post — JSON `{imageUrl,caption,location,tags}` **or** multipart with `image` file |
-| POST | `/api/posts/<id>/like` · `/save` | toggle like / save |
-| POST | `/api/posts/<id>/comments` `{content}` | add comment |
-| POST | `/api/posts/<id>/delete` | delete own post |
-| GET | `/api/stories` | stories (last 24h, you + people you follow) |
-| POST | `/api/stories` | create story — JSON `{imageUrl}` or multipart `image` file |
-| POST | `/api/stories/<id>/seen` | mark story seen |
-| GET | `/api/notifications` · POST `/api/notifications/read` | notifications |
+## Tests
 
-## Data model
-`User` (custom, extends `AbstractUser`) · `Follow` · `Post` · `Like` · `SavedPost` · `Comment` · `Story` · `StoryView` · `Notification`.
-Uniqueness (one like/save/follow per pair, no self-follow) is enforced by database constraints.
+```bash
+cd backend
+python manage.py test
+```
+
+PostgreSQL must be running. The tests cover auth, profiles, posts, comments, likes, follows, notifications and the story rules.
+
+## Configuration
+
+Set these as environment variables (Django does not read `.env` files; see `backend/.env.example`).
+
+| Variable                            | Default               | Purpose                        |
+| ----------------------------------- | --------------------- | ------------------------------ |
+| `DJANGO_DEBUG`                      | `0`                   | `1` for development            |
+| `DJANGO_SECRET_KEY`                 | none                  | Required when debug is off     |
+| `DJANGO_ALLOWED_HOSTS`              | `localhost,127.0.0.1` | Allowed host names             |
+| `DJANGO_CSRF_TRUSTED_ORIGINS`       | empty                 | e.g. `https://your-domain.com` |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | `vortex`              | Database login                 |
+| `DB_HOST`, `DB_PORT`                | `localhost`, `5432`   | Database location              |
+
+## API
+
+JSON, session-cookie auth, `X-CSRFToken` header on non-GET requests.
+
+| Area          | Endpoints                                                                                                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth          | `POST /api/auth/register`, `/login`, `/logout`                                                                                                                                                |
+| Profile       | `GET` / `PATCH` / `POST /api/me`, `GET /api/users/<username>`, `POST /api/users/<username>/follow`                                                                                            |
+| Posts         | `GET` / `POST /api/posts` (filters: `for-you`, `following`, `explore`, `saved`, `liked`; also `author`, `q`, `limit`, `offset`), `POST /api/posts/<id>/like`, `/save`, `/comments`, `/delete` |
+| Stories       | `GET` / `POST /api/stories`, `POST /api/stories/<id>/seen`, `/like`, `GET /api/stories/<id>/likes`                                                                                            |
+| Notifications | `GET /api/notifications`, `POST /api/notifications/read`                                                                                                                                      |
+
+Stories are visible only to their author and the author's followers, and expire after 24 hours.
 
 ## Production notes
-- Set `DJANGO_DEBUG=0`, a real `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, and `DJANGO_CSRF_TRUSTED_ORIGINS`.
-- Run with `gunicorn vortex.wsgi`; serve `frontend/` from nginx (or keep `DJANGO_SERVE_FRONTEND=1` for small deployments).
-- Image uploads are stored under `backend/media/` and served at `/media/`.
-- Not included yet: rate limiting on login, tests.
+
+- Set `DJANGO_DEBUG=0`, a real `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS`.
+- Run with `gunicorn vortex.wsgi` from `backend/`.
+- Django serves uploads (`/media/`) and admin static files only when `DJANGO_DEBUG=1`. In production, serve `backend/media/` and the output of `collectstatic` with nginx or similar.
+
+## Known limitations
+
+- No rate limiting on login.
+- The story "Reply to..." box is a placeholder, not a working input.
+- The post menu's "Report" only shows a message, and "Copy link" copies the page address, not the post's.
