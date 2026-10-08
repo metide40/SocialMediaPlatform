@@ -77,6 +77,17 @@
 
 [data-theme="light"] .bottom-nav button[aria-current="page"] .bottom-nav__avatar,
 [data-theme="light"] .bottom-nav button.is-active .bottom-nav__avatar { border-color: var(--text); }
+[data-theme="light"] .stories {
+  background: rgb(255 255 255 / .6);
+}
+[data-theme="light"] .filters {
+  background: rgb(248 250 252 / .85);
+}
+[data-theme="light"] .filters button[aria-pressed="true"] {
+  color: var(--violet-strong);
+  background: rgb(124 58 237 / .1);
+  box-shadow: inset 0 0 0 1px rgb(124 58 237 / .3);
+}
 [data-theme="light"] .toast {
   background: #0f172a; color: #f8fafc;
 }
