@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="description" content="Vortex – a responsive social feed built with HTML, CSS and vanilla JavaScript." />
+  <title>Vortex</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="assets/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="assets/favicon-32.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script>
+    (function () {
+      try {
+        var th = localStorage.getItem("vortex-theme");
+        if (th === "light") document.documentElement.setAttribute("data-theme", "light");
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="#" data-nav="home" aria-label="Vortex home">
+        <span class="brand__logo" id="brandLogo"></span>
+        <span class="brand__name">Vortex</span>
+      </a>
+
+      <form class="search" id="searchForm" role="search" aria-label="Search posts" hidden>
+        <input id="searchInput" type="search" placeholder="Search posts, people, tags…" autocomplete="off" aria-label="Search" />
+      </form>
+
+      <div class="topbar__actions">
+        <button class="icon-btn" id="themeBtn" aria-label="Toggle light mode" title="Toggle theme"></button>
+        <button class="icon-btn" id="searchBtn" aria-label="Search" aria-expanded="false"></button>
+        <button class="icon-btn" id="addBtn" aria-label="Create post"></button>
+        <div class="notif">
+          <button class="icon-btn" id="bellBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false"></button>
+          <span class="badge" id="notifBadge" hidden></span>
+          <div class="popover" id="notifPanel" hidden>
+            <div class="popover__title">Notifications</div>
+            <ul class="notif__list" id="notifList"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout" id="layout">
+    <main class="layout__main" id="main">
+      <!-- Profile page (hidden on home) -->
+      <section class="profile-page" id="profilePage" hidden>
+        <section class="profile" id="profile" aria-label="Profile"></section>
+      </section>
+
+      <!-- Home feed chrome -->
+      <section class="stories" id="storiesSection" aria-label="Stories">
+        <div class="stories__row" id="stories"></div>
+      </section>
+
+      <nav class="filters" id="filters" aria-label="Feed filter"></nav>
+
+      <section id="feed" class="feed" aria-live="polite"></section>
+    </main>
+  </div>
+
+  <!-- Instagram-style bottom navigation -->
+  <nav class="bottom-nav" id="bottomNav" aria-label="Main">
+    <button type="button" data-nav="home" aria-label="Home" aria-current="page">
+      <span class="bottom-nav__ico" data-ico="home"></span>
+      <span class="bottom-nav__label">Home</span>
+    </button>
+    <button type="button" data-nav="create" aria-label="Create post">
+      <span class="bottom-nav__ico" data-ico="plus"></span>
+      <span class="bottom-nav__label">Create</span>
+    </button>
+    <button type="button" data-nav="profile" aria-label="Profile">
+      <span class="bottom-nav__avatar" id="navAvatar"></span>
+      <span class="bottom-nav__label">Profile</span>
+    </button>
+  </nav>
+
+  <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="Story viewer"></div>
+  <div class="viewer" id="dialog" hidden role="dialog" aria-modal="true"></div>
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
