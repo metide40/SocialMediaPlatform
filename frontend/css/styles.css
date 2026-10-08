@@ -617,7 +617,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 0 0 2px var(--bg);
 }
-.story__ring--add > div { position: relative; }
+.story__ring > div { position: relative; }
 
 .story .story__plus .ico { width: 12px; height: 12px; stroke-width: 3; }
 
