@@ -1,6 +1,6 @@
 # Vortex
 
-A social feed in the style of Instagram, built with Django and vanilla JavaScript. It has posts, likes, comments, follows, 24-hour stories, notifications, profiles, and a light and dark theme.
+A social feed built with Django and vanilla JavaScript. It has posts, likes, comments, follows, 24-hour stories, notifications, profiles, and a light and dark theme.
 
 - **Frontend:** HTML, CSS and JavaScript in `frontend/` (no build step)
 - **Backend:** Django + PostgreSQL JSON API in `backend/`
