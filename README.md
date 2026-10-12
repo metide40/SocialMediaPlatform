@@ -82,7 +82,11 @@ Stories are visible only to their author and the author's followers, and expire 
 - Run with `gunicorn vortex.wsgi` from `backend/`.
 - Django serves uploads (`/media/`) and admin static files only when `DJANGO_DEBUG=1`. In production, serve `backend/media/` and the output of `collectstatic` with nginx or similar.
 
+## Known limitations
 
+- No rate limiting on login.
+- The story "Reply to..." box is a placeholder, not a working input.
+- The post menu's "Report" only shows a message, and "Copy link" copies the page address, not the post's.
 
 
 
