@@ -85,5 +85,5 @@ Stories are visible only to their author and the author's followers, and expire 
 ## Known limitations
 
 - No rate limiting on login.
-- The story "Reply to..." box is a placeholder, not a working input.
+
 
