@@ -82,7 +82,7 @@ Stories are visible only to their author and the author's followers, and expire 
 - Run with `gunicorn vortex.wsgi` from `backend/`.
 - Django serves uploads (`/media/`) and admin static files only when `DJANGO_DEBUG=1`. In production, serve `backend/media/` and the output of `collectstatic` with nginx or similar.
 
-## Known limitations
+
 
 
 
